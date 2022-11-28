@@ -2,21 +2,15 @@ package com.iyue.jxtrace;
 
 import android.app.Activity;
 import android.content.Context;
-import android.util.ArrayMap;
-
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.ref.WeakReference;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashSet;
 import java.util.Set;
-
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -52,10 +46,6 @@ public class MainHook implements IXposedHookLoadPackage {
         XposedBridge.log(TAG + " hookPackageName=" + hookPackageName);
         if (loadPackageParam.packageName.equals(hookPackageName)) {
             getMainActivityContext(loadPackageParam);
-            if (MainActivityContext!=null)
-
-
-                findCurrentClassLoader();
             hookAll(loadPackageParam);
         }
     }
@@ -77,12 +67,9 @@ public class MainHook implements IXposedHookLoadPackage {
                 XposedBridge.log(TAG + " end hook MainActivity");
                 MainActivityContext = (Context) param.args[0];
                 XposedBridge.log(TAG +"MainActivityContext:"+MainActivityContext.getClassLoader().toString());
-                // 加壳app 可分析获取还原后的ClassLoader
-                //hookALLClass(MainActivityContext.getClassLoader());
-
+                // 加壳app 可分析获取壳初始化后的ClassLoader
             }
         });
-
     }
 
     /**
@@ -111,6 +98,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 classLoaders.add(parent);
                 parent = parent.getParent();
             }
+
             for (ClassLoader loader : classLoaders) {
                 hookALLClass(loader);
             }
@@ -125,6 +113,7 @@ public class MainHook implements IXposedHookLoadPackage {
      * @param classLoader 根据ClassLoader 查找所有类
      */
     private void hookALLClass(ClassLoader classLoader) {
+        XposedBridge.log(TAG + "hookALLClass():ClassLoader:"+classLoader.toString());
         XposedHelpers.findAndHookMethod("java.lang.ClassLoader", classLoader, "loadClass", String.class, new XC_MethodHook() {
             @Override
             public int compareTo(XCallback o) {
@@ -171,21 +160,22 @@ public class MainHook implements IXposedHookLoadPackage {
                                 String str = new String();
                                 int length = param.args.length;
                                 Class<?>[] parameterTypes = method.getParameterTypes();
-
                                 for (int i = 0; i < length; ++i) {
-                                    // 强转有些会失败 可以特殊处理
                                     Object s;
                                     try {
                                         s = parameterTypes[i].cast(param.args[i]).toString();
                                     } catch (Exception e) {
                                         s = param.args[i];
-
                                     }
                                     str += " " + parameterTypes[i] + " " + s;
                                 }
-
                                 XposedBridge.log(TAG + "call " + method.getName() + "(" + str + ")");
 
+                            }
+                            @Override
+                            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                                super.afterHookedMethod(param);
+                                XposedBridge.log(TAG + "call " + method.getName() + "-> result: "+ param.getResult());
                             }
                         });
                     }
@@ -193,37 +183,6 @@ public class MainHook implements IXposedHookLoadPackage {
 
             }
         });
-    }
-
-    private void findCurrentClassLoader(){
-        try {
-            Class<?> ActivityThreadClass =  MainActivityContext.getClassLoader().loadClass("android.app.ActivityThread");
-            Method currentActivityThreadMethod=ActivityThreadClass.getDeclaredMethod("currentActivityThread");
-            currentActivityThreadMethod.setAccessible(true);
-
-            Object ActivityThreadObj=currentActivityThreadMethod.invoke(null);
-            Field mPackages = ActivityThreadClass.getDeclaredField("mPackages");
-            mPackages.setAccessible(true);
-
-            ArrayMap mPackages1 = (ArrayMap) mPackages.get(ActivityThreadObj);
-            WeakReference wr = (WeakReference) mPackages1.get(getHookPackageName());
-            Object loadedApkObj = wr.get();
-
-            Class<?> loadedApkClazz =  MainActivityContext.getClassLoader().loadClass("android.app.LoadedApk");
-            Field mClassLoader=  loadedApkClazz.getDeclaredField("mClassLoader");
-            mClassLoader.setAccessible(true);
-            ClassLoader classLoader = (ClassLoader) mClassLoader.get(loadedApkObj);
-            hookALLClass(classLoader);
-
-        } catch (ClassNotFoundException | NoSuchMethodException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        }
     }
 
 }

@@ -43,7 +43,7 @@ public class IyuePakageAdapter extends RecyclerView.Adapter<IyuePakageAdapter.Iy
             mPref = mContext.getSharedPreferences(mContext.getPackageName(), mContext.MODE_PRIVATE);
             currentHookPackageName = mPref.getString("hookPackageName", "");
             Toast.makeText(mContext,"获取root权限方便模块调用!", Toast.LENGTH_SHORT).show();
-            Toast.makeText(mContext,"lspoased 里也要选择需要hook的app", Toast.LENGTH_SHORT).show();
+            Toast.makeText(mContext,"lsposed 里也要选择需要hook的app", Toast.LENGTH_SHORT).show();
 
         } catch (SecurityException ignored) {
             Log.d(TAG, "IyuePakageAdapter: getSharedPreferences fail:"+ignored.getMessage());
@@ -98,6 +98,38 @@ public class IyuePakageAdapter extends RecyclerView.Adapter<IyuePakageAdapter.Iy
 
         Log.d(TAG, "saveHookPackage: "+packageName);
     }
+
+    private void  clearHookPackage(String packageName){
+        SharedPreferences.Editor edit = mPref.edit();
+        try {
+            edit.putString("hookPackageName", "");
+            edit.commit();
+        }catch (Exception e){
+            edit.putString("hookPackageName", "");
+            edit.apply();
+        }
+        try {
+            Process p = Runtime.getRuntime().exec("su");
+            DataOutputStream dataOutputStream = new DataOutputStream(p.getOutputStream());
+//            String cmd = "chmod 777 /data/data/"+mContext.getPackageName()+"/shared_prefs/com.iyue.jxtrace.xml";
+//            dataOutputStream.writeBytes(cmd + "\n");
+//            dataOutputStream.flush();
+            String cmd = "chmod 777 -R /data/local/tmp";
+            dataOutputStream.writeBytes(cmd + "\n");
+            dataOutputStream.flush();
+            cmd = "echo "+"\"\""+" > /data/local/tmp/hookPackage";
+            dataOutputStream.writeBytes(cmd + "\n");
+            dataOutputStream.flush();
+            dataOutputStream.close();
+        }catch (Exception e){
+            e.printStackTrace();
+
+        }
+        Toast.makeText(mContext,"取消hookPackage:"+packageName, Toast.LENGTH_SHORT).show();
+
+        Log.d(TAG, "clearHookPackage: "+packageName);
+    }
+
     @Override
     public int getItemCount() {
         return mPackageInfoList.size();
@@ -128,11 +160,21 @@ public class IyuePakageAdapter extends RecyclerView.Adapter<IyuePakageAdapter.Iy
 //                if(old_position !=999 && old_position != position){
                     notifyDataSetChanged();
 //                }
-                Toast.makeText(mContext,"强制退出"+iyuePakageInfo.getPakageName()+"app即可生效 ",Toast.LENGTH_SHORT).show();
-                v.setBackgroundColor(Color.GREEN);
-                old_position = position;
-                // 保存需要hook的
-                saveHookPackage(iyuePakageInfo.getPakageName());
+                if(old_position == position){
+                    // 去除hook
+                    clearHookPackage(iyuePakageInfo.getPakageName());
+                    holder.mRelativeLayout.setBackgroundColor(Color.WHITE);
+                    old_position = 999;
+                }else{
+                    Toast.makeText(mContext,"强制退出"+iyuePakageInfo.getPakageName()+"app即可生效 ",Toast.LENGTH_SHORT).show();
+                    v.setBackgroundColor(Color.GREEN);
+                    old_position = position;
+                    // 保存需要hook的
+                    saveHookPackage(iyuePakageInfo.getPakageName());
+                }
+
+
+
             }
         });
     }
