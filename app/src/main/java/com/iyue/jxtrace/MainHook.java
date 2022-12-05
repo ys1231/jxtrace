@@ -2,6 +2,8 @@ package com.iyue.jxtrace;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -21,8 +23,12 @@ import de.robv.android.xposed.callbacks.XCallback;
 public class MainHook implements IXposedHookLoadPackage {
     private static String TAG = "iyue_HookMain -> ";
     private Context MainActivityContext;
+    // 保存所有查找到的ClassLoader
     private Set<ClassLoader> classLoaders = new HashSet<>();
 
+    /**
+     * @return 获取 jtrace 选择的 app包名
+     */
     private static String getHookPackageName(){
         try {
             FileInputStream fileInputStream = new FileInputStream("/data/local/tmp/hookPackage");
@@ -45,13 +51,33 @@ public class MainHook implements IXposedHookLoadPackage {
         String hookPackageName = getHookPackageName();
         XposedBridge.log(TAG + " hookPackageName=" + hookPackageName);
         if (loadPackageParam.packageName.equals(hookPackageName)) {
-            getMainActivityContext(loadPackageParam);
+            //getMainActivityContext(loadPackageParam);
+            findClassLoader(loadPackageParam.classLoader);
             hookAll(loadPackageParam);
         }
     }
 
+    private void findClassLoader(ClassLoader loader) {
+        XposedBridge.log(TAG+"start hook ActivityThread: performLaunchActivity");
+        Class ActivityClientRecord = XposedHelpers.findClass("android.app.ActivityThread$ActivityClientRecord",loader);
+        XposedHelpers.findAndHookMethod("android.app.ActivityThread", loader, "performLaunchActivity", ActivityClientRecord, Intent.class, new XC_MethodHook() {
+            @Override
+            public int compareTo(XCallback o) {
+                return 0;
+            }
+
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                super.beforeHookedMethod(param);
+                XposedBridge.log(TAG+"ActivityThread: performLaunchActivity");
+            }
+        });
+
+
+    }
+
     /**
-     * 获取上下文
+     * 获取上下文 正常APP的上下文
      */
     private void getMainActivityContext(XC_LoadPackage.LoadPackageParam loadPackageParam) {
 
@@ -113,7 +139,7 @@ public class MainHook implements IXposedHookLoadPackage {
      * @param classLoader 根据ClassLoader 查找所有类
      */
     private void hookALLClass(ClassLoader classLoader) {
-        XposedBridge.log(TAG + "hookALLClass():ClassLoader:"+classLoader.toString());
+        //XposedBridge.log(TAG + "hookALLClass():ClassLoader:"+classLoader.toString());
         XposedHelpers.findAndHookMethod("java.lang.ClassLoader", classLoader, "loadClass", String.class, new XC_MethodHook() {
             @Override
             public int compareTo(XCallback o) {
@@ -123,7 +149,7 @@ public class MainHook implements IXposedHookLoadPackage {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
-                XposedBridge.log(TAG + "loadClass className:" + param.args[0]+"for ClassLoader:"+classLoader.toString());
+                //XposedBridge.log(TAG + "loadClass className:" + param.args[0]+"for ClassLoader:"+classLoader.toString());
             }
 
             @Override
@@ -135,8 +161,9 @@ public class MainHook implements IXposedHookLoadPackage {
                 try{
                     strClassName= aClass.toString();
                 }catch(Exception e){
-                    strClassName="";
+                    strClassName="Class.toString fail:"+aClass;
                 }
+                XposedBridge.log(TAG+"hookALLClass : "+strClassName);
                 try{
 
                     declaredMethods= aClass.getDeclaredMethods();
@@ -148,6 +175,7 @@ public class MainHook implements IXposedHookLoadPackage {
                     XposedBridge.log(TAG + "hook method: "+ strClassName +" : "+ method.getName());
                     int modifiers = method.getModifiers();
                     if (!Modifier.isAbstract(modifiers) && !Modifier.isInterface(modifiers)) {
+                        String finalStrClassName = strClassName;
                         XposedBridge.hookMethod(method, new XC_MethodHook() {
                             @Override
                             public int compareTo(XCallback o) {
@@ -169,7 +197,7 @@ public class MainHook implements IXposedHookLoadPackage {
                                     }
                                     str += " " + parameterTypes[i] + " " + s;
                                 }
-                                XposedBridge.log(TAG + "call " + method.getName() + "(" + str + ")");
+                                XposedBridge.log(TAG +"class: "+ finalStrClassName + "call " + method.getName() + "(" + str + ")");
 
                             }
                             @Override
@@ -180,7 +208,6 @@ public class MainHook implements IXposedHookLoadPackage {
                         });
                     }
                 }
-
             }
         });
     }
