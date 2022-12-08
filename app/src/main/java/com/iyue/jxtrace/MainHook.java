@@ -163,16 +163,19 @@ public class MainHook implements IXposedHookLoadPackage {
                 }catch(Exception e){
                     strClassName="Class.toString fail:"+aClass;
                 }
+                if(strClassName.contains("android.os.Debug")){
+                    return ;
+                }
+
                 XposedBridge.log(TAG+"hookALLClass : "+strClassName);
                 try{
-
                     declaredMethods= aClass.getDeclaredMethods();
                 }catch (Exception e){
                     XposedBridge.log(TAG + "Class:"+aClass+"getDeclaredMethods fail: "+e.getMessage());
                     return ;
                 }
                 for (Method method : declaredMethods) {
-                    XposedBridge.log(TAG + "hook method: "+ strClassName +" : "+ method.getName());
+                    //XposedBridge.log(TAG + "hook method: "+ strClassName +" : "+ method.getName());
                     int modifiers = method.getModifiers();
                     if (!Modifier.isAbstract(modifiers) && !Modifier.isInterface(modifiers)) {
                         String finalStrClassName = strClassName;
@@ -197,13 +200,13 @@ public class MainHook implements IXposedHookLoadPackage {
                                     }
                                     str += " " + parameterTypes[i] + " " + s;
                                 }
-                                XposedBridge.log(TAG +"class: "+ finalStrClassName + "call " + method.getName() + "(" + str + ")");
+                                XposedBridge.log(TAG +" class: "+ finalStrClassName + " call " + method.getName() + "(" + str + ")");
 
                             }
                             @Override
                             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                                 super.afterHookedMethod(param);
-                                XposedBridge.log(TAG + "call " + method.getName() + "-> result: "+ param.getResult());
+                                XposedBridge.log(TAG + " call " + method.getName() + " --> result: "+ param.getResult());
                             }
                         });
                     }
