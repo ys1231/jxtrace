@@ -21,37 +21,22 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import de.robv.android.xposed.callbacks.XCallback;
 
 public class MainHook implements IXposedHookLoadPackage {
-    private static String TAG = "iyue_HookMain -> ";
+    private static String TAG = "iyue_HookMain-> ";
     private Context MainActivityContext;
     // 保存所有查找到的ClassLoader
     private Set<ClassLoader> classLoaders = new HashSet<>();
-
-    /**
-     * @return 获取 jtrace 选择的 app包名
-     */
-    private static String getHookPackageName(){
-        try {
-            FileInputStream fileInputStream = new FileInputStream("/data/local/tmp/hookPackage");
-            BufferedReader bufferedReader =new BufferedReader(new InputStreamReader(fileInputStream));
-            String s = bufferedReader.readLine();
-            bufferedReader.close();
-            fileInputStream.close();
-            return s;
-        } catch (FileNotFoundException e) {
-            XposedBridge.log(TAG+"getHookPackageName fail:"+e.getMessage());
-            XposedBridge.log(TAG+"open jxtrace Select the app you want to hook!"+e.getMessage());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return "";
-    }
+    private Set<String> classNames = new HashSet<>();
+    private String className = "";
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
-        String hookPackageName = getHookPackageName();
-        XposedBridge.log(TAG + " hookPackageName==" + hookPackageName);
+        if(loadPackageParam.packageName.equals("com.iyue.jxtrace")){
+            return ;
+        }
+        XposedBridge.log(TAG + " hookPackageName==" + loadPackageParam.packageName);
 //        if (loadPackageParam.packageName.equals(hookPackageName)) {
             //getMainActivityContext(loadPackageParam);
+            className = getHookClassName();
             findClassLoader(loadPackageParam.classLoader);
             hookAll(loadPackageParam);
 //        }
@@ -72,8 +57,6 @@ public class MainHook implements IXposedHookLoadPackage {
                 XposedBridge.log(TAG+"ActivityThread: performLaunchActivity");
             }
         });
-
-
     }
 
     /**
@@ -96,6 +79,27 @@ public class MainHook implements IXposedHookLoadPackage {
                 // 加壳app 可分析获取壳初始化后的ClassLoader
             }
         });
+    }
+
+    /**
+     * @return 获取 jtrace 需要过滤的类名信息
+     */
+    private static String getHookClassName(){
+        try {
+            FileInputStream fileInputStream = new FileInputStream("/data/local/tmp/hookPackage");
+            BufferedReader bufferedReader =new BufferedReader(new InputStreamReader(fileInputStream));
+            String s = bufferedReader.readLine();
+            XposedBridge.log(TAG+"we need hook:"+s+"*");
+            bufferedReader.close();
+            fileInputStream.close();
+            return s;
+        } catch (FileNotFoundException e) {
+            XposedBridge.log(TAG+"getHookCLassName fail:"+e.getMessage());
+            XposedBridge.log(TAG+"echo \"class name\" > /data/local/tmp/hookPackage");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "";
     }
 
     /**
@@ -149,7 +153,7 @@ public class MainHook implements IXposedHookLoadPackage {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
-                //XposedBridge.log(TAG + "loadClass className:" + param.args[0]+"for ClassLoader:"+classLoader.toString());
+                XposedBridge.log(TAG + "-loadClass className:" + param.args[0]);
             }
 
             @Override
@@ -160,8 +164,13 @@ public class MainHook implements IXposedHookLoadPackage {
                 Method[] declaredMethods= null;
                 try{
                     strClassName= aClass.toString();
+                    if (classNames.contains(strClassName)){
+                        XposedBridge.log(TAG +"-class size:"+classNames.size());
+                        return ;
+                    }
+                    classNames.add(strClassName);
                 }catch(Exception e){
-                    XposedBridge.log(TAG +"Class.toString fail:"+aClass);
+                    XposedBridge.log(TAG +"-Class.toString fail:"+aClass);
                     return;
                 }
 //                if(strClassName.contains("android.os.Debug")){
@@ -169,10 +178,14 @@ public class MainHook implements IXposedHookLoadPackage {
 //                    return ;
 //                }
 //                // 二选一即可
-//                if(strClassName.contains("com.")){
-//                    // 过滤需要hook的类名 或前缀
-//                    return ;
-//                }
+
+                if (!className.equals("")){
+                    // 过滤需要hook的类名 或前缀
+                    if(!strClassName.contains(className)){
+                        return ;
+                    }
+                }
+
                 XposedBridge.log(TAG+"hookALLClass : "+strClassName);
                 try{
                     declaredMethods= aClass.getDeclaredMethods();
