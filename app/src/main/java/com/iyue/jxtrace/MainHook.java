@@ -49,12 +49,12 @@ public class MainHook implements IXposedHookLoadPackage {
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
         String hookPackageName = getHookPackageName();
-        XposedBridge.log(TAG + " hookPackageName=" + hookPackageName);
-        if (loadPackageParam.packageName.equals(hookPackageName)) {
+        XposedBridge.log(TAG + " hookPackageName==" + hookPackageName);
+//        if (loadPackageParam.packageName.equals(hookPackageName)) {
             //getMainActivityContext(loadPackageParam);
             findClassLoader(loadPackageParam.classLoader);
             hookAll(loadPackageParam);
-        }
+//        }
     }
 
     private void findClassLoader(ClassLoader loader) {
@@ -161,12 +161,18 @@ public class MainHook implements IXposedHookLoadPackage {
                 try{
                     strClassName= aClass.toString();
                 }catch(Exception e){
-                    strClassName="Class.toString fail:"+aClass;
+                    XposedBridge.log(TAG +"Class.toString fail:"+aClass);
+                    return;
                 }
-                if(strClassName.contains("android.os.Debug")){
-                    return ;
-                }
-
+//                if(strClassName.contains("android.os.Debug")){
+//                    // 过滤不需要hook的类名 或前缀
+//                    return ;
+//                }
+//                // 二选一即可
+//                if(strClassName.contains("com.")){
+//                    // 过滤需要hook的类名 或前缀
+//                    return ;
+//                }
                 XposedBridge.log(TAG+"hookALLClass : "+strClassName);
                 try{
                     declaredMethods= aClass.getDeclaredMethods();
@@ -201,7 +207,6 @@ public class MainHook implements IXposedHookLoadPackage {
                                     str += " " + parameterTypes[i] + " " + s;
                                 }
                                 XposedBridge.log(TAG +" class: "+ finalStrClassName + " call " + method.getName() + "(" + str + ")");
-
                             }
                             @Override
                             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
