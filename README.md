@@ -5,4 +5,5 @@
 # 使用方法 
 
 1. `adb logcat | grep iyue_HookMain`
-2. 可在搜索 `android.os.Debug`  过滤不需要的类名 或者 只过滤需要的类 方法等.
+2. 可在源码搜索 `android.os.Debug`  过滤不需要的类名  或执行下面的指令 添加只需要hook的类 比如com等前缀
+3. `adb shell "echo classname > /data/local/tmp/hookPackage"`
